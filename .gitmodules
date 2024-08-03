@@ -1,0 +1,3 @@
+[submodule "OpencvDnn"]
+	path = OpencvDnn
+	url = https://github.com/KorJIGSAw/AI_CAR
