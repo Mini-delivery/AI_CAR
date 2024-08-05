@@ -1,87 +1,115 @@
-import io
-import logging
-import socketserver
-from http import server
-from threading import Condition
+import time
+import mycamera
+import cv2
+from gpiozero import DigitalOutputDevice
+from gpiozero import PWMOutputDevice
 
-from picamera2 import Picamera2
-from picamera2.encoders import MJPEGEncoder
-from picamera2.outputs import FileOutput
+PWMA = PWMOutputDevice(18)
+AIN1 = DigitalOutputDevice(22)
+AIN2 = DigitalOutputDevice(27)
 
-PAGE = """\
-<html>
-<head>
-<title>picamera2 demo</title>
-</head>
-<body>
-<h1>Picamera2 Streaming Demo</h1>
-<img src="stream.mjpg" width="640" height="480" />
-</body>
-</html>
-"""
+PWMB = PWMOutputDevice(23)
+BIN1 = DigitalOutputDevice(25)
+BIN2 = DigitalOutputDevice(24)
 
-class StreamingOutput(io.BufferedIOBase):
-    def __init__(self):
-        self.frame = None
-        self.condition = Condition()
+def motor_go(speed):
+    AIN1.value = 0
+    AIN2.value = 1
+    PWMA.value = speed
+    BIN1.value = 0
+    BIN2.value = 1
+    PWMB.value = speed
 
-    def write(self, buf):
-        with self.condition:
-            self.frame = buf
-            self.condition.notify_all()
+def motor_back(speed):
+    AIN1.value = 1
+    AIN2.value = 0
+    PWMA.value = speed
+    BIN1.value = 1
+    BIN2.value = 0
+    PWMB.value = speed
+    
+def motor_left(speed):
+    AIN1.value = 1
+    AIN2.value = 0
+    PWMA.value = 0.0
+    BIN1.value = 0
+    BIN2.value = 1
+    PWMB.value = speed
+    
+def motor_right(speed):
+    AIN1.value = 0
+    AIN2.value = 1
+    PWMA.value = speed
+    BIN1.value = 1
+    BIN2.value = 0
+    PWMB.value = 0.0
 
-class StreamingHandler(server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path == '/':
-            self.send_response(301)
-            self.send_header('Location', '/index.html')
-            self.end_headers()
-        elif self.path == '/index.html':
-            content = PAGE.encode('utf-8')
-            self.send_response(200)
-            self.send_header('Content-Type', 'text/html')
-            self.send_header('Content-Length', len(content))
-            self.end_headers()
-            self.wfile.write(content)
-        elif self.path == '/stream.mjpg':
-            self.send_response(200)
-            self.send_header('Age', 0)
-            self.send_header('Cache-Control', 'no-cache, private')
-            self.send_header('Pragma', 'no-cache')
-            self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=FRAME')
-            self.end_headers()
-            try:
-                while True:
-                    with output.condition:
-                        output.condition.wait()
-                        frame = output.frame
-                    self.wfile.write(b'--FRAME\r\n')
-                    self.send_header('Content-Type', 'image/jpeg')
-                    self.send_header('Content-Length', len(frame))
-                    self.end_headers()
-                    self.wfile.write(frame)
-                    self.wfile.write(b'\r\n')
-            except Exception as e:
-                logging.warning(
-                    'Removed streaming client %s: %s',
-                    self.client_address, str(e))
-        else:
-            self.send_error(404)
-            self.end_headers()
+def motor_stop():
+    AIN1.value = 0
+    AIN2.value = 1
+    PWMA.value = 0.0
+    BIN1.value = 1
+    BIN2.value = 0
+    PWMB.value = 0.0
 
-class StreamingServer(socketserver.ThreadingMixIn, server.HTTPServer):
-    allow_reuse_address = True
-    daemon_threads = True
+speedSet = 0.5
 
+camera = mycamera.MyPiCamera(640,480)
+        
+def main():
+    filepath = "/home/pi/AI_CAR/video/train"
+    i = 0
+    carState = "stop"
+    try:
+        while True:
+            
+            keyValue = cv2.waitKey(1)
+        
+            if keyValue == ord('q'):
+                break
+            elif keyValue == 82:
+                print("go")
+                carState = "go"
+                motor_go(speedSet)
+            elif keyValue == 84:
+                print("stop")
+                carState = "stop"
+                motor_stop()
+            elif keyValue == 81:
+                print("left")
+                carState = "left"
+                motor_left(speedSet)
+            elif keyValue == 83:
+                print("right")
+                carState = "right"
+                motor_right(speedSet)
+                
+            _, image = camera.read()
+            image = cv2.flip(image,-1)
+            height, _, _ = image.shape
+            image = image[int(height/2):,:,:]
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
+            image = cv2.resize(image, (200,66))
+            image = cv2.GaussianBlur(image,(5,5),0)
+            _,image = cv2.threshold(image,200,255,cv2.THRESH_BINARY_INV)
+            
+            if carState == "left":
+                cv2.imwrite("%s_%05d_%03d.png" % (filepath, i, 45), image)
+                i += 1
+            elif carState == "right":
+                cv2.imwrite("%s_%05d_%03d.png" % (filepath, i, 135), image)
+                i += 1
+            elif carState == "go":
+                cv2.imwrite("%s_%05d_%03d.png" % (filepath, i, 90), image)
+                i += 1
+            
+            cv2.imshow('Original', image)
+            
+    except KeyboardInterrupt:
+        pass
 
-picam2 = Picamera2()
-picam2.configure(picam2.create_video_configuration(main={"size": (640, 480)}))
-output = StreamingOutput()
-picam2.start_recording(MJPEGEncoder(), FileOutput(output))
-
-try:
-    address = ('', 8000)
-    server = StreamingServer(address, StreamingHandler)
-    server.serve_forever()
-finally:
-    picam2.stop_recording()
+if __name__ == '__main__':
+    main()
+    cv2.destroyAllWindows()
+    PWMA.value = 0.0
+    PWMB.value = 0.0
