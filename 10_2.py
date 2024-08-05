@@ -91,7 +91,7 @@ def main():
             image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
             image = cv2.resize(image, (200,66))
             image = cv2.GaussianBlur(image,(5,5),0)
-            _,image = cv2.threshold(image,90,255,cv2.THRESH_BINARY_INV)
+            _,image = cv2.threshold(image,105,255,cv2.THRESH_BINARY_INV)
             
             if carState == "left":
                 cv2.imwrite("%s_%05d_%03d.png" % (filepath, i, 45), image)
