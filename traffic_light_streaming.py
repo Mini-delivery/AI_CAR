@@ -171,6 +171,8 @@ def process_frames():
         model.setInput(cv2.dnn.blobFromImage(image, size=(300, 300), swapRB=True))
         detections = model.forward()
 
+        stop_motors = False  # Flag to stop motors if needed
+
         for detection in detections[0, 0, :, :]:
             confidence = detection[2]
             if confidence > .5:
@@ -232,6 +234,10 @@ def process_frames():
                     cv2.rectangle(image, (box_x, box_y), (box_width, box_height), (23, 230, 210), thickness=1)
                     cv2.putText(image, f"Traffic Light: {traffic_light_color}", (box_x, box_y - 10), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+                elif class_name == 'person':
+                    # If a person is detected, stop the motors
+                    stop_motors = True
+                    print("Person detected: stopping motors")
                 else:
                     print(str(class_id) + " " + str(detection[2]) + " " + class_name)
                     box_x = int(detection[3] * image_width)
@@ -241,28 +247,22 @@ def process_frames():
                     cv2.rectangle(image, (box_x, box_y), (box_width, box_height), (23, 230, 210), thickness=1)
                     cv2.putText(image, class_name, (box_x, box_y + int(0.05 * image_height)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))
 
+        if stop_motors:
+            motor_stop()
+
         cv2.imshow('image', image)
 
         if cv2.waitKey(1) == ord('q'):
             break
 
-def run_server():
-    address = ('', 8000)
-    http_server = StreamingServer(address, StreamingHandler)
-    http_server.serve_forever()
+# Start the streaming server
+server = StreamingServer(('0.0.0.0', 8000), StreamingHandler)
+server_thread = Thread(target=server.serve_forever)
+server_thread.start()
 
-if __name__ == '__main__':
-    try:
-        # Start the streaming server
-        server_thread = Thread(target=run_server, daemon=True)
-        server_thread.start()
+# Start processing frames
+process_frames()
 
-        # Start processing frames
-        process_frames()
-        
-    except KeyboardInterrupt:
-        pass
-    finally:
-        picam2.stop_recording()
-        motor_stop()
-        cv2.destroyAllWindows()
+# Clean up
+picam2.stop_recording()
+cv2.destroyAllWindows()
