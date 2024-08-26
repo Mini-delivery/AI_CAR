@@ -12,7 +12,7 @@ from picamera2 import Picamera2
 from picamera2.encoders import MJPEGEncoder
 from picamera2.outputs import FileOutput
 
-# Define constants and initialize GPIOs
+# GPIO 핀을 사용하여 모터 제어를 위한 장치 초기화
 PWMA = PWMOutputDevice(18)
 AIN1 = DigitalOutputDevice(22)
 AIN2 = DigitalOutputDevice(27)
@@ -21,6 +21,7 @@ PWMB = PWMOutputDevice(23)
 BIN1 = DigitalOutputDevice(25)
 BIN2 = DigitalOutputDevice(24)
 
+# 전진
 def motor_go(speed):
     AIN1.value = 0
     AIN2.value = 1
@@ -29,6 +30,7 @@ def motor_go(speed):
     BIN2.value = 1
     PWMB.value = speed
 
+# 후진
 def motor_back(speed):
     AIN1.value = 1
     AIN2.value = 0
@@ -37,6 +39,7 @@ def motor_back(speed):
     BIN2.value = 0
     PWMB.value = speed
 
+# 좌회전
 def motor_left(speed):
     AIN1.value = 1
     AIN2.value = 0
@@ -45,6 +48,7 @@ def motor_left(speed):
     BIN2.value = 1
     PWMB.value = speed
 
+# 우회전
 def motor_right(speed):
     AIN1.value = 0
     AIN2.value = 1
@@ -53,6 +57,7 @@ def motor_right(speed):
     BIN2.value = 0
     PWMB.value = 0.0
 
+# 정지
 def motor_stop():
     AIN1.value = 0
     AIN2.value = 1
@@ -61,27 +66,30 @@ def motor_stop():
     BIN2.value = 0
     PWMB.value = 0.0
 
+#속도 설정
 speedSet = 0.4
 
-# Initialize Picamera2
+# 파이카메라 초기화 및 설정
 picam2 = Picamera2()
 picam2.configure(picam2.create_video_configuration(main={"size": (640, 480)}))
 
+# 스트리밍 출력 클래스
 class StreamingOutput(io.BufferedIOBase):
     def __init__(self):
         self.frame = None
         self.condition = Condition()
 
+    # 버퍼 사용될때마다 알림(?)
     def write(self, buf):
         with self.condition:
             self.frame = buf
             self.condition.notify_all()
 
+# 스트리밍 출력 생성 MJPEG 시작
 output = StreamingOutput()
 picam2.start_recording(MJPEGEncoder(), FileOutput(output))
 
-
-
+# HTTP 요청을 처리하는 클래스
 class StreamingHandler(server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/':
@@ -121,6 +129,7 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
             self.send_error(404)
             self.end_headers()
 
+# 멀티 스레딩을 지원하는 HTTP 서버 클래스
 class StreamingServer(socketserver.ThreadingMixIn, server.HTTPServer):
     allow_reuse_address = True
     daemon_threads = True
@@ -142,6 +151,7 @@ PAGE = """\
 </html>
 """
 
+# 이미지 전처리 
 def img_preprocess(image):
     height, _, _ = image.shape
     image = image[int(height/2):,:,:]
@@ -152,6 +162,7 @@ def img_preprocess(image):
     image = image / 255
     return image
 
+# 객체 인식, 차선 추척
 def process_frames():
     classNames = {0: 'background', 1: 'person', 2: 'bicycle', 3: 'car', 4: 'motorcycle', 5: 'airplane', 6: 'bus',
                   7: 'train', 8: 'truck', 9: 'boat', 10: 'traffic light', 11: 'fire hydrant', 13: 'stop sign', 14: 'parking meter', 
@@ -168,28 +179,33 @@ def process_frames():
     def id_class_name(class_id, classes):
         return classes.get(class_id, "unknown")
 
+    # 모델 로드
     model = cv2.dnn.readNetFromTensorflow('/home/pi/AI_CAR/OpencvDnn/models/frozen_inference_graph.pb',
                                           '/home/pi/AI_CAR/OpencvDnn/models/ssd_mobilenet_v2_coco_2018_03_29.pbtxt')
 
+    # 라인 트레이싱 모델 로드
     lane_model = load_model('/home/pi/AI_CAR/model/lane_navigation_final.h5')
     
     carState = "stop"
 
+    # 사진 프레임 올때 대기 시키고 전 프레임 처리 후 가져오기 
     while True:
         with output.condition:
             output.condition.wait()
             frame_data = output.frame
 
+        # 프레임 위아래 뒤집기
         image = cv2.imdecode(np.frombuffer(frame_data, np.uint8), cv2.IMREAD_COLOR)
         image = cv2.flip(image, -1)
         image_height, image_width, _ = image.shape
 
-        # Object detection
+        # 객체 감지
         model.setInput(cv2.dnn.blobFromImage(image, size=(300, 300), swapRB=True))
         detections = model.forward()
 
         stop_motors = False
 
+        #인식 객체 표시 및 신호등 감지시 분리하여 색 판별
         for detection in detections[0, 0, :, :]:
             confidence = detection[2]
             if confidence > .5:
@@ -201,9 +217,11 @@ def process_frames():
                     box_width = int(detection[5] * image_width)
                     box_height = int(detection[6] * image_height)
 
+                    # 신호등 삼등분 자르기
                     traffic_light_roi = image[box_y:box_height, box_x:box_width]
                     hsv_roi = cv2.cvtColor(traffic_light_roi, cv2.COLOR_BGR2HSV)
-                    
+
+                    # 각 신호등 범위 설정
                     lower_red1 = np.array([0, 70, 50])
                     upper_red1 = np.array([10, 255, 255])
                     lower_red2 = np.array([170, 70, 50])
@@ -221,7 +239,8 @@ def process_frames():
                     
                     height_roi, width_roi, _ = traffic_light_roi.shape
                     section_height = height_roi // 3
-                    
+
+                    # 높이 3등분 색상 구역설정
                     red_section = mask_red[0:section_height, :]
                     yellow_section = mask_yellow[section_height:2*section_height, :]
                     green_section = mask_green[2*section_height:3*section_height, :]
@@ -260,12 +279,13 @@ def process_frames():
         if stop_motors:
             motor_stop()
 
-        # Lane tracking
+        # 라인 트레이싱
         preprocessed = img_preprocess(image)
         X = np.asarray([preprocessed])
         steering_angle = int(lane_model.predict(X)[0])
         print("Steering angle:", steering_angle)
-                
+
+        #각도에 따라서 방향 결정
         if steering_angle >= 70 and steering_angle <= 110:
             if carState == "go":
                 print("go")
@@ -285,15 +305,14 @@ def process_frames():
         if cv2.waitKey(1) == ord('q'):
             break
 
-# Start the streaming server
+# 스트리밍 서버 시작
 server = StreamingServer(('0.0.0.0', 8000), StreamingHandler)
 server_thread = Thread(target=server.serve_forever)
 server_thread.start()
 
-# Start processing frames
 process_frames()
 
-# Clean up
+# 자원 해제
 picam2.stop_recording()
 cv2.destroyAllWindows()
 PWMA.value = 0.0
