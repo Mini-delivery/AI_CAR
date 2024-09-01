@@ -23,6 +23,7 @@ output = StreamingOutput()
 
 # 객체 인식 및 차선 추적
 def process_frames():
+    print("process_frames 스레드가 시작되었습니다.")  # 스레드 시작 확인
     classNames = {0: 'background', 1: 'person', 2: 'bicycle', 3: 'car', 4: 'motorcycle', 5: 'airplane', 6: 'bus',
                   7: 'train', 8: 'truck', 9: 'boat', 10: 'traffic light', 11: 'fire hydrant', 13: 'stop sign', 14: 'parking meter', 
                   15: 'bench', 16: 'bird', 17: 'cat', 18: 'dog', 19: 'horse', 20: 'sheep', 21: 'cow', 22: 'elephant', 23: 'bear', 
@@ -41,8 +42,14 @@ def process_frames():
 
     while True:
         with output.condition:
+            print("condition 대기 중")  # Condition 대기 상태 확인
             output.condition.wait()
+            print("condition 해제됨")  # Condition 해제 확인
             frame_data = output.frame
+        
+        if frame_data is None:
+            print("frame_data가 None입니다.")
+            continue
         
         image = cv2.imdecode(np.frombuffer(frame_data, np.uint8), cv2.IMREAD_COLOR)
         image = cv2.flip(image, -1)
@@ -91,6 +98,8 @@ def video_feed():
                 continue
             
             _, jpeg = cv2.imencode('.jpg', frame)
+            output.write(jpeg.tobytes())  # `output.write` 호출 부분에 print 추가
+            print("output.write 호출됨")
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
     
@@ -102,4 +111,9 @@ def index():
 
 # 메인 함수
 if __name__ == '__main__':
+    process_thread = Thread(target=process_frames)
+    process_thread.daemon = True
+    process_thread.start()
+    print("Flask 서버가 시작됩니다.")
+    
     app.run(host='0.0.0.0', port=5000)
