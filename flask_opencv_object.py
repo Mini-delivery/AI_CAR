@@ -3,6 +3,7 @@ import cv2
 import io
 import numpy as np
 from threading import Condition, Thread
+import requests  # HTTP 요청을 위해 추가
 
 app = Flask(__name__)
 
@@ -42,9 +43,7 @@ def process_frames():
 
     while True:
         with output.condition:
-            #print("condition 대기 중")  # Condition 대기 상태 확인
             output.condition.wait()
-            #print("condition 해제됨")  # Condition 해제 확인
             frame_data = output.frame
         
         if frame_data is None:
@@ -74,8 +73,10 @@ def process_frames():
                 # 'person' (class_id == 1) 또는 'traffic light' (class_id == 10) 감지 시 메시지 출력
                 if class_id == 1:
                     print("human detected!")
-                if class_id == 10:
+                    send_message_to_raspberry_pi("stop")
+                elif class_id == 10:
                     print("traffic light detected!")
+                    #send_message_to_raspberry_pi("Traffic light detected!")
 
                     # Traffic light 색상 감지 추가 코드
                     if box_x < 0 or box_y < 0 or box_width <= box_x or box_height <= box_y:
@@ -107,11 +108,6 @@ def process_frames():
                     height_roi, width_roi, _ = traffic_light_roi.shape
                     half_height = height_roi // 2
 
-                    # 기존 코드에서 section_height를 제거합니다.
-                    height_roi, width_roi, _ = traffic_light_roi.shape
-                    half_height = height_roi // 2  # 높이를 2등분
-
-                    # 위쪽 절반은 빨간색, 아래쪽 절반은 초록색으로 설정
                     green_section = mask_red[0:half_height, :]
                     red_section = mask_green[half_height:height_roi, :]
 
@@ -120,9 +116,11 @@ def process_frames():
 
                     if red_pixels > green_pixels:
                         traffic_light_color = "red"
+                        send_message_to_raspberry_pi("stop")
                         print("Red light detected. Motor should stop.")
                     else:
                         traffic_light_color = "green"
+                        send_message_to_raspberry_pi("go")
                         print("Green light detected. Motor should go.")
 
                     print(f"Traffic light color: {traffic_light_color}")
@@ -130,6 +128,14 @@ def process_frames():
         # 이미지 인코딩
         _, jpeg = cv2.imencode('.jpg', image)
         output.write(jpeg.tobytes())
+
+def send_message_to_raspberry_pi(message):
+    url = 'http://192.168.137.36:5000/receive_message'  # 라즈베리파이의 IP와 포트로 설정
+    try:
+        response = requests.post(url, json={"message": message})
+        print(f"Response from Raspberry Pi: {response.text}")
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to send message to Raspberry Pi: {e}")
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -146,12 +152,10 @@ def video_feed():
         while True:
             frame = cv2.imread('received_image.jpg')
             if frame is None:
-                # 프레임을 읽지 못했을 경우 대기
                 continue
             
             _, jpeg = cv2.imencode('.jpg', frame)
-            output.write(jpeg.tobytes())  # `output.write` 호출 부분에 print 추가
-            #print("output.write 호출됨")
+            output.write(jpeg.tobytes())
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
     
