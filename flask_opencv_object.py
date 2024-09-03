@@ -4,6 +4,8 @@ import io
 import numpy as np
 from threading import Condition, Thread
 import requests  # HTTP 요청을 위해 추가
+#과부화 방지 임포트
+import time
 
 app = Flask(__name__)
 
@@ -49,6 +51,9 @@ def process_frames():
         if frame_data is None:
             print("frame_data가 None입니다.")
             continue
+
+        # pc과부화 방지 위한 코드
+        start_time = time.time() #시작 시간을 기록
         
         image = cv2.imdecode(np.frombuffer(frame_data, np.uint8), cv2.IMREAD_COLOR)
         image = cv2.flip(image, -1)
@@ -61,7 +66,7 @@ def process_frames():
         for detection in detections[0, 0, :, :]:
             confidence = detection[2]
             class_id = int(detection[1])
-            if confidence > 0.5:
+            if confidence > 0.6:
                 box_x = int(detection[3] * image_width)
                 box_y = int(detection[4] * image_height)
                 box_width = int(detection[5] * image_width)
@@ -70,11 +75,11 @@ def process_frames():
                 # 객체 박스 그리기
                 cv2.rectangle(image, (box_x, box_y), (box_width, box_height), (23, 230, 210), thickness=1)
 
-                # 'person' (class_id == 1) 또는 'traffic light' (class_id == 10) 감지 시 메시지 출력
-                if class_id == 1:
-                    print("human detected!")
-                    send_message_to_raspberry_pi("stop")
-                elif class_id == 10:
+                #'person' (class_id == 1) 또는 'traffic light' (class_id == 10) 감지 시 메시지 출력
+                # if class_id == 1:
+                #     print("human detected!")
+                #     send_message_to_raspberry_pi("stop")
+                if class_id == 10:
                     print("traffic light detected!")
                     #send_message_to_raspberry_pi("Traffic light detected!")
 
@@ -105,29 +110,53 @@ def process_frames():
                     mask_yellow = cv2.inRange(hsv_roi, lower_yellow, upper_yellow)
                     mask_green = cv2.inRange(hsv_roi, lower_green, upper_green)
 
-                    height_roi, width_roi, _ = traffic_light_roi.shape
-                    half_height = height_roi // 2
+                    
+                    # height_roi, width_roi, _ = traffic_light_roi.shape
+                    # half_height = height_roi // 2
 
-                    green_section = mask_red[0:half_height, :]
-                    red_section = mask_green[half_height:height_roi, :]
+                    # green_section = mask_red[0:half_height, :]
+                    # red_section = mask_green[half_height:height_roi, :]
 
-                    red_pixels = cv2.countNonZero(red_section)
-                    green_pixels = cv2.countNonZero(green_section)
+                    # red_pixels = cv2.countNonZero(red_section)
+                    # green_pixels = cv2.countNonZero(green_section)
 
-                    if red_pixels > green_pixels:
-                        traffic_light_color = "red"
+                    # if red_pixels > green_pixels:
+                    #     traffic_light_color = "red"
+                    #     send_message_to_raspberry_pi("stop")
+                    #     print("Red light detected. Motor should stop.")
+                    # else:
+                    #     traffic_light_color = "green"
+                    #     send_message_to_raspberry_pi("go")
+                    #     print("Green light detected. Motor should go.")
+                    
+                    #테스트 코드
+                    red_pixels = cv2.countNonZero(mask_red)
+                    yellow_pixels = cv2.countNonZero(mask_yellow)
+                    green_pixels = cv2.countNonZero(mask_green)
+
+                    # 색상 판별
+                    if red_pixels > max(green_pixels, yellow_pixels):
                         send_message_to_raspberry_pi("stop")
                         print("Red light detected. Motor should stop.")
-                    else:
-                        traffic_light_color = "green"
+                        traffic_light_color = "red"
+                    elif green_pixels > max(red_pixels, yellow_pixels):
                         send_message_to_raspberry_pi("go")
                         print("Green light detected. Motor should go.")
+                        traffic_light_color = "green"
+                    elif yellow_pixels > max(red_pixels, green_pixels):
+                        print("Yellow light detected. Caution advised.")
+                        traffic_light_color = "yellow"
 
                     print(f"Traffic light color: {traffic_light_color}")
 
         # 이미지 인코딩
         _, jpeg = cv2.imencode('.jpg', image)
         output.write(jpeg.tobytes())
+
+        # 처리 시간에 따라 딜레이를 추가하여 과부화 방지 
+        elapsed_time = time.time() - start_time
+        if elapsed_time < 0.1:
+            time.sleep(0.1 - elapsed_time)
 
 def send_message_to_raspberry_pi(message):
     url = 'http://192.168.137.36:5000/receive_message'  # 라즈베리파이의 IP와 포트로 설정
