@@ -76,9 +76,9 @@ def process_frames():
                 cv2.rectangle(image, (box_x, box_y), (box_width, box_height), (23, 230, 210), thickness=1)
 
                 #'person' (class_id == 1) 또는 'traffic light' (class_id == 10) 감지 시 메시지 출력
-                # if class_id == 1:
-                #     print("human detected!")
-                #     send_message_to_raspberry_pi("stop")
+                if class_id == 1:
+                    print("human detected!")
+                    send_message_to_raspberry_pi("stop")
                 if class_id == 10:
                     print("traffic light detected!")
                     #send_message_to_raspberry_pi("Traffic light detected!")
@@ -111,23 +111,23 @@ def process_frames():
                     mask_green = cv2.inRange(hsv_roi, lower_green, upper_green)
 
                     
-                    # height_roi, width_roi, _ = traffic_light_roi.shape
-                    # half_height = height_roi // 2
+                    height_roi, width_roi, _ = traffic_light_roi.shape
+                    half_height = height_roi // 2
 
-                    # green_section = mask_red[0:half_height, :]
-                    # red_section = mask_green[half_height:height_roi, :]
+                    green_section = mask_red[0:half_height, :]
+                    red_section = mask_green[half_height:height_roi, :]
 
-                    # red_pixels = cv2.countNonZero(red_section)
-                    # green_pixels = cv2.countNonZero(green_section)
+                    red_pixels = cv2.countNonZero(red_section)
+                    green_pixels = cv2.countNonZero(green_section)
 
-                    # if red_pixels > green_pixels:
-                    #     traffic_light_color = "red"
-                    #     send_message_to_raspberry_pi("stop")
-                    #     print("Red light detected. Motor should stop.")
-                    # else:
-                    #     traffic_light_color = "green"
-                    #     send_message_to_raspberry_pi("go")
-                    #     print("Green light detected. Motor should go.")
+                    if red_pixels > green_pixels:
+                        traffic_light_color = "red"
+                        send_message_to_raspberry_pi("stop")
+                        print("Red light detected. Motor should stop.")
+                    else:
+                        traffic_light_color = "green"
+                        send_message_to_raspberry_pi("go")
+                        print("Green light detected. Motor should go.")
                     
                     #테스트 코드
                     red_pixels = cv2.countNonZero(mask_red)
@@ -159,7 +159,8 @@ def process_frames():
             time.sleep(0.1 - elapsed_time)
 
 def send_message_to_raspberry_pi(message):
-    url = 'http://192.168.137.36:5000/receive_message'  # 라즈베리파이의 IP와 포트로 설정
+    #url = 'http://192.168.137.36:5000/receive_message'  # 라즈베리파이의 IP와 포트로 설정
+    url = 'http://192.168.137.34:5000/receive_message'  # 라즈베리파이의 IP와 포트로 설정
     try:
         response = requests.post(url, json={"message": message})
         print(f"Response from Raspberry Pi: {response.text}")
