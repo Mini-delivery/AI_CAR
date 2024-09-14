@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, Response
+from flask import Flask, request, render_template, Response, jsonify
 import cv2
 import io
 import numpy as np
@@ -6,12 +6,13 @@ from threading import Condition, Thread
 import requests  # HTTP 요청을 위해 추가
 #과부화 방지 임포트
 import time
+import json
 
 app = Flask(__name__)
 
 camera = cv2.VideoCapture(0)
 
-# StreamingOutput 클래스 정의
+# StreamingOutput 클래스 
 class StreamingOutput(io.BufferedIOBase):
     def __init__(self):
         self.frame = None
@@ -150,7 +151,7 @@ def process_frames():
                     print(f"Traffic light color: {traffic_light_color}")
 
         # 이미지 인코딩
-        _, jpeg = cv2.imencode('.jpg', image)
+        _, jpeg = cv2.imencode('.jpg', image) 
         output.write(jpeg.tobytes())
 
         # 처리 시간에 따라 딜레이를 추가하여 과부화 방지 
@@ -166,6 +167,33 @@ def send_message_to_raspberry_pi(message):
         print(f"Response from Raspberry Pi: {response.text}")
     except requests.exceptions.RequestException as e:
         print(f"Failed to send message to Raspberry Pi: {e}")
+
+# 백엔드로부터 JSON파일을 가져와서 저장
+@app.route('/receive_json', methods=['POST'])
+def receive_json():
+    if not request.is_json:
+        return 'Invalid request. No JSON data found.', 400
+
+    json_data = request.get_json()
+
+    # JSON 데이터를 파일로 저장
+    with open('received_data.json', 'w') as json_file:
+        json.dump(json_data, json_file)
+
+    return 'JSON data received and saved.', 200
+
+@app.route('/send_json_to_android', methods=['GET'])
+def send_json_to_android():
+    try:
+        # 저장된 JSON 파일을 읽기
+        with open('received_data.json', 'r') as json_file:
+            json_data = json.load(json_file)
+
+        return jsonify(json_data), 200
+    except Exception as e:
+       return f"Error reading JSON file: {e}", 500
+
+
 
 @app.route('/upload', methods=['POST'])
 def upload():
