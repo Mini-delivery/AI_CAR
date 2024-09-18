@@ -168,32 +168,6 @@ def send_message_to_raspberry_pi(message):
     except requests.exceptions.RequestException as e:
         print(f"Failed to send message to Raspberry Pi: {e}")
 
-# 백엔드로부터 JSON파일을 가져와서 저장
-@app.route('/receive_json', methods=['POST'])
-def receive_json():
-    if not request.is_json:
-        return 'Invalid request. No JSON data found.', 400
-
-    json_data = request.get_json()
-
-    # JSON 데이터를 파일로 저장
-    with open('received_data.json', 'w') as json_file:
-        json.dump(json_data, json_file)
-
-    return 'JSON data received and saved.', 200
-
-@app.route('/send_json_to_android', methods=['GET'])
-def send_json_to_android():
-    try:
-        # 저장된 JSON 파일을 읽기
-        with open('received_data.json', 'r') as json_file:
-            json_data = json.load(json_file)
-
-        return jsonify(json_data), 200
-    except Exception as e:
-       return f"Error reading JSON file: {e}", 500
-
-
 
 @app.route('/upload', methods=['POST'])
 def upload():
