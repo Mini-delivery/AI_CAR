@@ -77,9 +77,9 @@ def process_frames():
                 cv2.rectangle(image, (box_x, box_y), (box_width, box_height), (23, 230, 210), thickness=1)
 
                 #'person' (class_id == 1) 또는 'traffic light' (class_id == 10) 감지 시 메시지 출력
-                if class_id == 1:
-                    print("human detected!")
-                    send_message_to_raspberry_pi("stop")
+                # if class_id == 1:
+                #     print("human detected!")
+                #     send_message_to_raspberry_pi("stop")
                 if class_id == 10:
                     print("traffic light detected!")
                     #send_message_to_raspberry_pi("Traffic light detected!")
@@ -127,7 +127,7 @@ def process_frames():
                         print("Red light detected. Motor should stop.")
                     else:
                         traffic_light_color = "green"
-                        send_message_to_raspberry_pi("go")
+                        send_message_to_raspberry_pi("auto")
                         print("Green light detected. Motor should go.")
                     
                     #테스트 코드
