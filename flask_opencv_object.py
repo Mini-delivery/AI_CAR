@@ -76,10 +76,10 @@ def process_frames():
                 # 객체 박스 그리기
                 cv2.rectangle(image, (box_x, box_y), (box_width, box_height), (23, 230, 210), thickness=1)
 
-                #'person' (class_id == 1) 또는 'traffic light' (class_id == 10) 감지 시 메시지 출력
-                # if class_id == 1:
-                #     print("human detected!")
-                #     send_message_to_raspberry_pi("stop")
+                # 'person' (class_id == 1) 또는 'traffic light' (class_id == 10) 감지 시 메시지 출력
+                if class_id == 1:
+                    print("human detected!")
+                    send_message_to_raspberry_pi("stop")
                 if class_id == 10:
                     print("traffic light detected!")
                     #send_message_to_raspberry_pi("Traffic light detected!")
@@ -156,8 +156,8 @@ def process_frames():
 
         # 처리 시간에 따라 딜레이를 추가하여 과부화 방지 
         elapsed_time = time.time() - start_time
-        if elapsed_time < 0.1:
-            time.sleep(0.1 - elapsed_time)
+        if elapsed_time < 0.01:
+            time.sleep(0.01 - elapsed_time)
 
 def send_message_to_raspberry_pi(message):
     #url = 'http://192.168.137.36:5000/receive_message'  # 라즈베리파이의 IP와 포트로 설정
