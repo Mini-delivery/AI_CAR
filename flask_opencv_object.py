@@ -53,10 +53,6 @@ def process_frames():
 
     # 프레임 처리 로직
     while True:
-        # 1. 객체 감지
-        # 2. 신호등 색상 인식
-        # 3. 라즈베리파이로 제어 명령 전송
-        
         with output.condition:
             output.condition.wait()
             frame_data = output.frame
@@ -72,14 +68,16 @@ def process_frames():
         image = cv2.flip(image, -1)
         image_height, image_width, _ = image.shape
 
-        # 1. 객체 감지
+        # 이미지 전처리
         model.setInput(cv2.dnn.blobFromImage(image, size=(300, 300), swapRB=True))
         detections = model.forward()
-
+        
+        # 객체 감지 결과 처리
         for detection in detections[0, 0, :, :]:
             confidence = detection[2]
             class_id = int(detection[1])
             if confidence > 0.6:
+                # 바운딩 박스 좌표 계산
                 box_x = int(detection[3] * image_width)
                 box_y = int(detection[4] * image_height)
                 box_width = int(detection[5] * image_width)
@@ -96,7 +94,6 @@ def process_frames():
                     print("traffic light detected!")
                     #send_message_to_raspberry_pi("Traffic light detected!")
 
-                    # 2. 신호등 색상 인식
                     if box_x < 0 or box_y < 0 or box_width <= box_x or box_height <= box_y:
                         continue
 
@@ -105,9 +102,11 @@ def process_frames():
                     if traffic_light_roi.size == 0:
                         print("skip")
                         continue
-
+                  
+                    # HSV 색공간으로 변환
                     hsv_roi = cv2.cvtColor(traffic_light_roi, cv2.COLOR_BGR2HSV)
 
+                    # 색상별 임계값 설정
                     lower_red1 = np.array([0, 70, 50])
                     upper_red1 = np.array([10, 255, 255])
                     lower_red2 = np.array([170, 70, 50])
@@ -117,13 +116,13 @@ def process_frames():
                     lower_green = np.array([40, 70, 50])
                     upper_green = np.array([90, 255, 255])
 
+                    # 마스크 생성 및 픽셀 카운트
                     mask_red1 = cv2.inRange(hsv_roi, lower_red1, upper_red1)
                     mask_red2 = cv2.inRange(hsv_roi, lower_red2, upper_red2)
                     mask_red = cv2.bitwise_or(mask_red1, mask_red2)
                     mask_yellow = cv2.inRange(hsv_roi, lower_yellow, upper_yellow)
                     mask_green = cv2.inRange(hsv_roi, lower_green, upper_green)
 
-                    
                     height_roi, width_roi, _ = traffic_light_roi.shape
                     half_height = height_roi // 2
 
@@ -133,7 +132,7 @@ def process_frames():
                     red_pixels = cv2.countNonZero(red_section)
                     green_pixels = cv2.countNonZero(green_section)
 
-                    # 3. 라즈베리파이로 제어 명령 전송
+                    # 신호등 색상 판단 및 명령 전송
                     if red_pixels > green_pixels:
                         traffic_light_color = "red"
                         send_message_to_raspberry_pi("stop")
@@ -174,8 +173,8 @@ def process_frames():
 
 # 라즈베리파이로 메시지 전송하는 함수
 def send_message_to_raspberry_pi(message):
-    # url = 'http://192.168.137.36:5000/receive_message'  # 라즈베리파이의 IP와 포트로 설정
-    url = 'http://192.168.137.34:5000/receive_message'  # 라즈베리파이의 IP와 포트로 설정
+    # 라즈베리파이의 IP와 포트로 설정
+    url = 'http://192.168.137.34:5000/receive_message' 
     try:
         response = requests.post(url, json={"message": message})
         print(f"Response from Raspberry Pi: {response.text}")
