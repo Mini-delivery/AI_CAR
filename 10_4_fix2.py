@@ -1,3 +1,4 @@
+# 모터 제어 및 자율주행 로직
 import threading
 import time
 import mycamera
@@ -21,7 +22,8 @@ PWMB = PWMOutputDevice(23)
 BIN1 = DigitalOutputDevice(25)
 BIN2 = DigitalOutputDevice(24)
 
-def motor_go(speed):
+# 모터 제어 핀 설정 및 함수
+def motor_go(speed): # 전진 동작 제어
     AIN1.value = 0
     AIN2.value = 1
     PWMA.value = speed
@@ -29,7 +31,7 @@ def motor_go(speed):
     BIN2.value = 1
     PWMB.value = speed
 
-def motor_back(speed):
+def motor_back(speed): # 후진 동작 제어
     AIN1.value = 1
     AIN2.value = 0
     PWMA.value = speed
@@ -37,7 +39,7 @@ def motor_back(speed):
     BIN2.value = 0
     PWMB.value = speed
     
-def motor_left(speed):
+def motor_left(speed): # 좌회전 동작 제어
     AIN1.value = 1
     AIN2.value = 0
     PWMA.value = 0.0
@@ -45,7 +47,7 @@ def motor_left(speed):
     BIN2.value = 1
     PWMB.value = speed
     
-def motor_right(speed):
+def motor_right(speed): # 우회전 동작 제어
     AIN1.value = 0
     AIN2.value = 1
     PWMA.value = speed
@@ -53,7 +55,7 @@ def motor_right(speed):
     BIN2.value = 0
     PWMB.value = 0.0
 
-def motor_stop():
+def motor_stop(): # 브레이크 동작 제어
     AIN1.value = 0
     AIN2.value = 1
     PWMA.value = 0.0
@@ -63,13 +65,14 @@ def motor_stop():
 
 speedSet = 0.4
 
-def img_preprocess(image):
+# 이미지 전처리 함수
+def img_preprocess(image): # 자율주행을 위한 이미지 전처리
     height, _, _ = image.shape
-    image = image[int(height/2):,:,:]
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
-    image = cv2.resize(image, (200,66))
-    image = cv2.GaussianBlur(image,(5,5),0)
-    _, image = cv2.threshold(image, 100, 255, cv2.THRESH_BINARY_INV)
+    image = image[int(height/2):,:,:]  # 1. 이미지 크롭
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV) # 2. 색상 변환
+    image = cv2.resize(image, (200,66))  # 3. 리사이징
+    image = cv2.GaussianBlur(image,(5,5),0)  # 4. 블러 처리
+    _, image = cv2.threshold(image, 100, 255, cv2.THRESH_BINARY_INV) # 5. 이진화
     image = image / 255
     return image
 
@@ -160,9 +163,12 @@ def control_car():
             auto_mode = False  # 수동 모드로 전환
     return "Car command executed."
 
+# 메인 제어 루프
 def main():
     global carState  # 전역 변수 사용
     global auto_mode # 자동 모드 상태 관리
+
+    # 딥러닝 모델 로드
     model_path = '/home/pi/AI_CAR/model/lane_navigation_final1.h5'
     model = load_model(model_path)
     
