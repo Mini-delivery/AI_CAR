@@ -1,4 +1,6 @@
+# 자율주행 제어 (라즈베리파이)
 # 모터 제어 및 자율주행 로직
+
 import threading
 import time
 import mycamera
