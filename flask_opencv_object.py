@@ -4,15 +4,18 @@ import io
 import numpy as np
 from threading import Condition, Thread
 import requests  # HTTP 요청을 위해 추가
+
 #과부화 방지 임포트
 import time
 import json
 
+# Flask 앱 초기화
 app = Flask(__name__)
 
+# 웹캠 초기화
 camera = cv2.VideoCapture(0)
 
-# StreamingOutput 클래스 
+# StreamingOutput 클래스 : 비디오 스트리밍을 위한 클래스 정의
 class StreamingOutput(io.BufferedIOBase):
     def __init__(self):
         self.frame = None
@@ -28,6 +31,8 @@ output = StreamingOutput()
 # 객체 인식 및 차선 추적
 def process_frames():
     print("process_frames 스레드가 시작되었습니다.")  # 스레드 시작 확인
+
+    # COCO 데이터셋 클래스 정의 (객체 인식용)
     classNames = {0: 'background', 1: 'person', 2: 'bicycle', 3: 'car', 4: 'motorcycle', 5: 'airplane', 6: 'bus',
                   7: 'train', 8: 'truck', 9: 'boat', 10: 'traffic light', 11: 'fire hydrant', 13: 'stop sign', 14: 'parking meter', 
                   15: 'bench', 16: 'bird', 17: 'cat', 18: 'dog', 19: 'horse', 20: 'sheep', 21: 'cow', 22: 'elephant', 23: 'bear', 
@@ -40,11 +45,16 @@ def process_frames():
                   79: 'oven', 80: 'toaster', 81: 'sink', 82: 'refrigerator', 84: 'book', 85: 'clock', 86: 'vase', 87: 'scissors', 
                   88: 'teddy bear', 89: 'hair drier', 90: 'toothbrush'}
 
-    # 모델 로드
+    # SSD MobileNet 모델 로드
     model = cv2.dnn.readNetFromTensorflow('./frozen_inference_graph.pb',
                                           './ssd_mobilenet_v2_coco_2018_03_29.pbtxt')
 
+    # 프레임 처리 로직
     while True:
+        # 1. 객체 감지
+        # 2. 신호등 색상 인식
+        # 3. 라즈베리파이로 제어 명령 전송
+        
         with output.condition:
             output.condition.wait()
             frame_data = output.frame
@@ -60,7 +70,7 @@ def process_frames():
         image = cv2.flip(image, -1)
         image_height, image_width, _ = image.shape
 
-        # 객체 감지
+        # 1. 객체 감지
         model.setInput(cv2.dnn.blobFromImage(image, size=(300, 300), swapRB=True))
         detections = model.forward()
 
@@ -84,7 +94,7 @@ def process_frames():
                     print("traffic light detected!")
                     #send_message_to_raspberry_pi("Traffic light detected!")
 
-                    # Traffic light 색상 감지 추가 코드
+                    # 2. 신호등 색상 인식
                     if box_x < 0 or box_y < 0 or box_width <= box_x or box_height <= box_y:
                         continue
 
@@ -121,6 +131,7 @@ def process_frames():
                     red_pixels = cv2.countNonZero(red_section)
                     green_pixels = cv2.countNonZero(green_section)
 
+                    # 3. 라즈베리파이로 제어 명령 전송
                     if red_pixels > green_pixels:
                         traffic_light_color = "red"
                         send_message_to_raspberry_pi("stop")
@@ -159,8 +170,9 @@ def process_frames():
         if elapsed_time < 0.01:
             time.sleep(0.01 - elapsed_time)
 
+# 라즈베리파이로 메시지 전송하는 함수
 def send_message_to_raspberry_pi(message):
-    #url = 'http://192.168.137.36:5000/receive_message'  # 라즈베리파이의 IP와 포트로 설정
+    # url = 'http://192.168.137.36:5000/receive_message'  # 라즈베리파이의 IP와 포트로 설정
     url = 'http://192.168.137.34:5000/receive_message'  # 라즈베리파이의 IP와 포트로 설정
     try:
         response = requests.post(url, json={"message": message})
