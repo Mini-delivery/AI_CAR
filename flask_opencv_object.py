@@ -1,3 +1,5 @@
+# 객체 감지 및 신호등 인식 서버 (MacBook)
+
 from flask import Flask, request, render_template, Response, jsonify
 import cv2
 import io
