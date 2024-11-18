@@ -68,13 +68,24 @@ def motor_stop(): # 브레이크 동작 제어
 speedSet = 0.4
 
 # 이미지 전처리 함수
-def img_preprocess(image): # 자율주행을 위한 이미지 전처리
+def img_preprocess(image):
+    # 상단 절반 제거 (불필요한 영역 제거)
     height, _, _ = image.shape
-    image = image[int(height/2):,:,:]  # 1. 이미지 크롭
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV) # 2. 색상 변환
-    image = cv2.resize(image, (200,66))  # 3. 리사이징
-    image = cv2.GaussianBlur(image,(5,5),0)  # 4. 블러 처리
-    _, image = cv2.threshold(image, 100, 255, cv2.THRESH_BINARY_INV) # 5. 이진화
+    image = image[int(height/2):,:,:]  
+    
+    # YUV 색공간 변환 (조명 영향 최소화)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV) 
+    
+    # 크기 조정 (모델 입력 크기에 맞춤)
+    image = cv2.resize(image, (200,66))
+    
+    # 노이즈 제거
+    image = cv2.GaussianBlur(image,(5,5),0) 
+    
+    # 이진화 처리
+    _, image = cv2.threshold(image, 100, 255, cv2.THRESH_BINARY_INV)
+    
+    # 정규화
     image = image / 255
     return image
 
@@ -207,7 +218,7 @@ def main():
 
             X = np.asarray([preprocessed])
             steering_angle = int(model.predict(X)[0])
-            #print("predict angle:", steering_angle)
+            # print("predict angle:", steering_angle)
                 
             # 현재 상태에 따른 동작 유지 (자동 모드)
             if auto_mode:
